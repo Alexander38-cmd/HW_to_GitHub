@@ -1,3 +1,9 @@
 # Default ignored files
 /shelf/
 /workspace.xml
+# Datasource local storage ignored files
+/../../../../:\java\HW_to_GitHub\.idea/dataSources/
+/dataSources.local.xml
+# Editor-based HHTP Client requests
+/httpRequests/
+*.iml
