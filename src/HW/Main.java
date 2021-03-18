@@ -7,7 +7,12 @@ import java.io.PrintWriter;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.sql.*;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.Semaphore;
 
 public class Main {
     public static void main(String[] args) {
@@ -304,5 +309,153 @@ public class ABC {
                 e.printStackTrace();
             }
         }).start();
+    }
+}
+
+public class NeedForSpeed {
+    public static final int CARS_COUNT = 4;
+    static CountDownLatch WINNER = new CountDownLatch(CARS_COUNT);
+
+    public static void main(String[] args) {
+        CyclicBarrier cb = new CyclicBarrier(CARS_COUNT, new Action());
+        Semaphore smp = new Semaphore(2);
+
+        System.out.println("IMPORTANT ANNOUNCEMENT >>> Training!!!");
+        Race race = new Race(new Road(60), new Tunnel(smp), new Road(40));
+        Car[] cars = new Car[CARS_COUNT];
+        for (int i = 0; i < cars.length; i++) {
+            cars[i] = new Car(race, 20 + (int) (Math.random() * 10), cb);
+        }
+        for (int i = 0; i < cars.length; i++) {
+            new Thread(cars[i]).start();
+        }
+        while (WINNER.getCount() > 0)
+            try {
+                Thread.sleep(100);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        System.out.println("IMPORTANT ANNOUNCEMENT >>> The race is over!!!");
+    }
+}
+
+
+class Car implements Runnable {
+    CyclicBarrier cb;
+    private static int CARS_COUNT;
+    private Race race;
+    private int speed;
+    private String name;
+
+
+    public String getName() {
+        return name;
+    }
+
+    public int getSpeed() {
+        return speed;
+    }
+
+    public Car(Race race, int speed, CyclicBarrier cb) {
+        this.cb = cb;
+        this.race = race;
+        this.speed = speed;
+        CARS_COUNT++;
+        this.name = "Participant №" + CARS_COUNT;
+    }
+
+    @Override
+    public void run() {
+        try {
+            System.out.println(this.name + " preparing.");
+            Thread.sleep(500 + (int) (Math.random() * 800));
+            System.out.println(this.name + " ready.");
+            cb.await();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        for (int i = 0; i < race.getStages().size(); i++) {
+            race.getStages().get(i).go(this);
+        }
+    }
+}
+
+abstract class Stage {
+    protected int length;
+    protected String description;
+
+    public String getDescription() {
+        return description;
+    }
+
+    public abstract void go(Car c);
+}
+
+class Road extends Stage {
+    public Road(int length) {
+        this.length = length;
+        this.description = "Road " + length + " metres.";
+    }
+
+    @Override
+    public void go(Car c) {
+        try {
+            System.out.println(c.getName() + " started stage: " + description);
+            Thread.sleep(length / c.getSpeed() * 1000);
+            System.out.println(c.getName() + " finished stage: " + description);
+            if (this.length == 40) {
+                NeedForSpeed.WINNER.countDown();
+            }
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+    }
+}
+
+class Tunnel extends Stage {
+    Semaphore smp;
+
+    public Tunnel(Semaphore smp) {
+        this.smp = smp;
+        this.length = 80;
+        this.description = "Tunnel " + length + " metres.";
+    }
+
+    @Override
+    public void go(Car c) {
+        try {
+            try {
+                System.out.println(c.getName() + " preparing for the stage (waiting): " + description);
+                smp.acquire();
+                System.out.println(c.getName() + " started stage: " + description);
+                Thread.sleep(length / c.getSpeed() * 1000);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            } finally {
+                System.out.println(c.getName() + " finished stage: " + description);
+                smp.release();
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+}
+
+class Race {
+    private ArrayList<Stage> stages;
+
+    public ArrayList<Stage> getStages() {
+        return stages;
+    }
+
+    public Race(Stage... stages) {
+        this.stages = new ArrayList<>(Arrays.asList(stages));
+    }
+}
+
+class Action implements Runnable {
+    @Override
+    public void run() {
+        System.out.println("IMPORTANT ANNOUNCEMENT >>> The race has begun!!!");
     }
 }
